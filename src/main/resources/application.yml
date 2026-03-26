@@ -14,7 +14,6 @@ spring:
         format_sql: true
  
 
- 
 server:
   port: 8080
  
@@ -22,4 +21,4 @@ application:
   security:
     jwt:
       secret-key: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
-      access-token-expiration: 900000         
+      access-token-expiration: 86400000
