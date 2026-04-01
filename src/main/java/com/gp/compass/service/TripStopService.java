@@ -1,0 +1,107 @@
+package com.gp.compass.service;
+
+import com.gp.compass.dto.AddressSnapshotRequest;
+import com.gp.compass.dto.TripStopResponse;
+import com.gp.compass.entity.Trip;
+import com.gp.compass.entity.TripStop;
+import com.gp.compass.entity.User;
+import com.gp.compass.mapper.TripStopMapper;
+import com.gp.compass.repository.TripRepository;
+import com.gp.compass.repository.TripStopRepository;
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class TripStopService {
+
+    private final TripStopRepository tripStopRepository;
+    private final TripRepository tripRepository;
+
+    private User authenticatedUser() {
+        return (User) SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getPrincipal();
+    }
+
+    private Trip findTripOwnedByUser(UUID tripId) {
+        return tripRepository.findByIdAndUser(tripId, authenticatedUser())
+                .orElseThrow(() -> new EntityNotFoundException("Viagem não encontrada"));
+    }
+
+    @Transactional
+    public List<TripStopResponse> addStops(UUID tripId, List<AddressSnapshotRequest> dtos) {
+        Trip trip = findTripOwnedByUser(tripId);
+        List<TripStop> currentStops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
+
+        // Desloca o destino N posições para abrir espaço para todos os novos
+        TripStop destination = currentStops.get(currentStops.size() - 1);
+        destination.setSequenceOrder(destination.getSequenceOrder() + dtos.size());
+        tripStopRepository.save(destination);
+
+        int nextOrder = destination.getSequenceOrder() - dtos.size();
+        List<TripStop> newStops = new ArrayList<>();
+        for (AddressSnapshotRequest dto : dtos) {
+            newStops.add(TripStop.builder()
+                    .trip(trip)
+                    .sequenceOrder(nextOrder++)
+                    .address(TripStopMapper.toSnapshot(dto))
+                    .build());
+        }
+
+        return tripStopRepository.saveAll(newStops).stream()
+                .map(TripStopMapper::toResponse)
+                .toList();
+    }
+
+    public List<TripStopResponse> getStops(UUID tripId) {
+        Trip trip = findTripOwnedByUser(tripId);
+        return tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip)
+                .stream()
+                .map(TripStopMapper::toResponse)
+                .toList();
+    }
+
+    @Transactional
+    public void deleteStops(UUID tripId, List<UUID> stopIds) {
+        Trip trip = findTripOwnedByUser(tripId);
+        List<TripStop> stops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
+
+        Set<Integer> protectedOrders = Set.of(
+                stops.get(0).getSequenceOrder(),
+                stops.get(stops.size() - 1).getSequenceOrder()
+        );
+
+        List<TripStop> toDelete = stops.stream()
+                .filter(s -> stopIds.contains(s.getId()))
+                .toList();
+
+        if (toDelete.size() != stopIds.size()) {
+            throw new EntityNotFoundException("Uma ou mais paradas não foram encontradas nesta viagem");
+        }
+
+        boolean hasProtected = toDelete.stream()
+                .anyMatch(s -> protectedOrders.contains(s.getSequenceOrder()));
+        if (hasProtected) {
+            throw new IllegalStateException("Não é possível remover a parada de início ou fim da viagem");
+        }
+
+        tripStopRepository.deleteAll(toDelete);
+    }
+
+    private void validateNotFirstOrLast(TripStop stop, List<TripStop> stops) {
+        boolean isFirst = stop.getSequenceOrder() == stops.get(0).getSequenceOrder();
+        boolean isLast  = stop.getSequenceOrder() == stops.get(stops.size() - 1).getSequenceOrder();
+        if (isFirst || isLast) {
+            throw new IllegalStateException("Não é possível remover a parada de início ou fim da viagem");
+        }
+    }
+}

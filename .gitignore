@@ -3,6 +3,8 @@ target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+compass_context_prompt.txt
+compass_context_prompt
 
 ### STS ###
 .apt_generated
