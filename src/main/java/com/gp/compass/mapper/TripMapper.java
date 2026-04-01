@@ -14,7 +14,9 @@ public class TripMapper {
     public static Trip toEntity(TripRequest dto) {
         if (dto == null) return null;
 
-        Trip trip = Trip.builder().build();
+        Trip trip = Trip.builder()
+                .title(dto.title())
+                .build();
 
         List<TripStop> stops = new ArrayList<>();
         for (int i = 0; i < dto.stops().size(); i++) {
@@ -39,6 +41,7 @@ public class TripMapper {
 
         return new TripResponse(
                 entity.getId(),
+                entity.getTitle(),
                 entity.getStatus(),
                 stopResponses,
                 entity.getCreatedAt()

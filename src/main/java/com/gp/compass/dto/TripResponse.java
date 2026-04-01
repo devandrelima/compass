@@ -8,6 +8,7 @@ import java.util.UUID;
 
 public record TripResponse(
         UUID id,
+        String title,
         TripStatus status,
         List<TripStopResponse> stops,
         LocalDateTime createdAt
