@@ -1,0 +1,15 @@
+ALTER TABLE trips
+    DROP COLUMN IF EXISTS origin_cep,
+    DROP COLUMN IF EXISTS origin_street,
+    DROP COLUMN IF EXISTS origin_neighborhood,
+    DROP COLUMN IF EXISTS origin_number,
+    DROP COLUMN IF EXISTS origin_city,
+    DROP COLUMN IF EXISTS origin_state,
+    DROP COLUMN IF EXISTS origin_complement,
+    DROP COLUMN IF EXISTS destination_cep,
+    DROP COLUMN IF EXISTS destination_street,
+    DROP COLUMN IF EXISTS destination_neighborhood,
+    DROP COLUMN IF EXISTS destination_number,
+    DROP COLUMN IF EXISTS destination_city,
+    DROP COLUMN IF EXISTS destination_state,
+    DROP COLUMN IF EXISTS destination_complement;
