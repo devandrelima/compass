@@ -47,6 +47,11 @@ public class TripStop {
     @Column(name = "stop_type", nullable = false, length = 20)
     private StopType stopType;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "priority", nullable = false, length = 20)
+    @Builder.Default
+    private StopPriority priority = StopPriority.NORMAL;
+
     @Embedded
     @AttributeOverrides({
         @AttributeOverride(name = "cep", column = @Column(name = "cep", nullable = false, length = 9)),
