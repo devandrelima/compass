@@ -1,7 +1,9 @@
 package com.gp.compass.controller;
 
 import com.gp.compass.dto.AddressSnapshotRequest;
+import com.gp.compass.dto.TripStopRequest;
 import com.gp.compass.dto.TripStopResponse;
+import com.gp.compass.dto.UpdateTripStopRequest;
 import com.gp.compass.service.TripStopService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,9 +29,18 @@ public class TripStopController {
     @PostMapping
     public ResponseEntity<List<TripStopResponse>> addStops(
             @PathVariable UUID tripId,
-            @RequestBody @Valid List<AddressSnapshotRequest> dtos
+            @RequestBody @Valid List<TripStopRequest> dtos
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.addStops(tripId, dtos));
+    }
+
+    @PatchMapping("/{stopId}")
+    public ResponseEntity<TripStopResponse> updateStop(
+            @PathVariable UUID tripId,
+            @PathVariable UUID stopId,
+            @RequestBody @Valid UpdateTripStopRequest dto
+    ) {
+        return ResponseEntity.ok(service.updateStop(tripId, stopId, dto));
     }
 
     @DeleteMapping
