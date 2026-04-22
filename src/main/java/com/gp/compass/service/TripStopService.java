@@ -1,23 +1,26 @@
 package com.gp.compass.service;
 
-import com.gp.compass.dto.AddressSnapshotRequest;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+
+import com.gp.compass.dto.TripStopRequest;
 import com.gp.compass.dto.TripStopResponse;
+import com.gp.compass.dto.UpdateTripStopRequest;
 import com.gp.compass.entity.Trip;
 import com.gp.compass.entity.TripStop;
 import com.gp.compass.entity.User;
 import com.gp.compass.mapper.TripStopMapper;
 import com.gp.compass.repository.TripRepository;
 import com.gp.compass.repository.TripStopRepository;
+
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +41,7 @@ public class TripStopService {
     }
 
     @Transactional
-    public List<TripStopResponse> addStops(UUID tripId, List<AddressSnapshotRequest> dtos) {
+    public List<TripStopResponse> addStops(UUID tripId, List<TripStopRequest> dtos) {
         Trip trip = findTripOwnedByUser(tripId);
         List<TripStop> currentStops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
 
@@ -49,11 +52,12 @@ public class TripStopService {
 
         int nextOrder = destination.getSequenceOrder() - dtos.size();
         List<TripStop> newStops = new ArrayList<>();
-        for (AddressSnapshotRequest dto : dtos) {
+        for (TripStopRequest dto : dtos) {
             newStops.add(TripStop.builder()
                     .trip(trip)
                     .sequenceOrder(nextOrder++)
-                    .address(TripStopMapper.toSnapshot(dto))
+                    .stopType(dto.stopType())
+                    .address(TripStopMapper.toSnapshot(dto.address()))
                     .build());
         }
 
@@ -68,6 +72,23 @@ public class TripStopService {
                 .stream()
                 .map(TripStopMapper::toResponse)
                 .toList();
+    }
+
+    @Transactional
+    public TripStopResponse updateStop(UUID tripId, UUID stopId, UpdateTripStopRequest dto) {
+
+        Trip trip = findTripOwnedByUser(tripId);
+
+        TripStop stop = tripStopRepository.findById(stopId)
+                .orElseThrow(() -> new EntityNotFoundException("Parada não encontrada"));
+
+        if (!stop.getTrip().getId().equals(trip.getId())) {
+            throw new EntityNotFoundException("Parada não pertence a esta viagem");
+        }
+
+        stop.setStopType(dto.stopType());
+
+        return TripStopMapper.toResponse(tripStopRepository.save(stop));
     }
 
     @Transactional
@@ -99,7 +120,7 @@ public class TripStopService {
 
     private void validateNotFirstOrLast(TripStop stop, List<TripStop> stops) {
         boolean isFirst = stop.getSequenceOrder() == stops.get(0).getSequenceOrder();
-        boolean isLast  = stop.getSequenceOrder() == stops.get(stops.size() - 1).getSequenceOrder();
+        boolean isLast = stop.getSequenceOrder() == stops.get(stops.size() - 1).getSequenceOrder();
         if (isFirst || isLast) {
             throw new IllegalStateException("Não é possível remover a parada de início ou fim da viagem");
         }

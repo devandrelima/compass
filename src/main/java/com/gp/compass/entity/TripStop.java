@@ -1,10 +1,27 @@
 package com.gp.compass.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
-
 import java.time.LocalDateTime;
 import java.util.UUID;
+
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
+import jakarta.persistence.Column;
+import jakarta.persistence.Embedded;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "trip_stops")
@@ -26,15 +43,19 @@ public class TripStop {
     @Column(name = "sequence_order", nullable = false)
     private int sequenceOrder;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stop_type", nullable = false, length = 20)
+    private StopType stopType;
+
     @Embedded
     @AttributeOverrides({
-            @AttributeOverride(name = "cep",           column = @Column(name = "cep",          nullable = false, length = 9)),
-            @AttributeOverride(name = "street",        column = @Column(name = "street",       nullable = false, length = 150)),
-            @AttributeOverride(name = "neighborhood",  column = @Column(name = "neighborhood", nullable = false, length = 100)),
-            @AttributeOverride(name = "number",        column = @Column(name = "number",       nullable = false, length = 20)),
-            @AttributeOverride(name = "city",          column = @Column(name = "city",         nullable = false, length = 100)),
-            @AttributeOverride(name = "state",         column = @Column(name = "state",        nullable = false, length = 2)),
-            @AttributeOverride(name = "complement",    column = @Column(name = "complement",   length = 150))
+        @AttributeOverride(name = "cep", column = @Column(name = "cep", nullable = false, length = 9)),
+        @AttributeOverride(name = "street", column = @Column(name = "street", nullable = false, length = 150)),
+        @AttributeOverride(name = "neighborhood", column = @Column(name = "neighborhood", nullable = false, length = 100)),
+        @AttributeOverride(name = "number", column = @Column(name = "number", nullable = false, length = 20)),
+        @AttributeOverride(name = "city", column = @Column(name = "city", nullable = false, length = 100)),
+        @AttributeOverride(name = "state", column = @Column(name = "state", nullable = false, length = 2)),
+        @AttributeOverride(name = "complement", column = @Column(name = "complement", length = 150))
     })
     private AddressSnapshot address;
 
