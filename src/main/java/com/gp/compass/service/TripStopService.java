@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import com.gp.compass.dto.TripStopRequest;
 import com.gp.compass.dto.TripStopResponse;
 import com.gp.compass.dto.UpdateTripStopRequest;
+import com.gp.compass.entity.StopPriority;
 import com.gp.compass.entity.Trip;
 import com.gp.compass.entity.TripStop;
 import com.gp.compass.entity.User;
@@ -57,6 +58,7 @@ public class TripStopService {
                     .trip(trip)
                     .sequenceOrder(nextOrder++)
                     .stopType(dto.stopType())
+                    .priority(dto.priority() != null ? dto.priority() : StopPriority.NORMAL)
                     .address(TripStopMapper.toSnapshot(dto.address()))
                     .build());
         }
@@ -86,7 +88,13 @@ public class TripStopService {
             throw new EntityNotFoundException("Parada não pertence a esta viagem");
         }
 
-        stop.setStopType(dto.stopType());
+        if (dto.stopType() != null) {
+            stop.setStopType(dto.stopType());
+        }
+
+        if (dto.priority() != null) {
+            stop.setPriority(dto.priority());
+        }
 
         return TripStopMapper.toResponse(tripStopRepository.save(stop));
     }
