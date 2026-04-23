@@ -18,12 +18,14 @@ public class TripMapper {
                 .title(dto.title())
                 .build();
 
-        List<TripStop> stops = new ArrayList<>();
+        List<TripStop> stops = trip.getStops();
         for (int i = 0; i < dto.stops().size(); i++) {
             TripStop stop = TripStop.builder()
                     .trip(trip)
                     .sequenceOrder(i)
-                    .address(TripStopMapper.toSnapshot(dto.stops().get(i)))
+                    .address(TripStopMapper.toSnapshot(dto.stops().get(i).address()))
+                    .stopType(dto.stops().get(i).stopType())
+                    .priority(dto.stops().get(i).priority())
                     .build();
             stops.add(stop);
         }

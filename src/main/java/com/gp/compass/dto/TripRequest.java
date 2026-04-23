@@ -16,6 +16,6 @@ public record TripRequest(
         @NotNull(message = "A lista de paradas é obrigatória")
         @Size(min = 2, message = "A viagem deve ter no mínimo 2 paradas (início e fim)")
         @Valid
-        List<AddressSnapshotRequest> stops
+        List<TripStopRequest> stops
 
 ) {}
