@@ -109,6 +109,21 @@ public class TripStopService {
     }
 
     @Transactional
+    public TripStopResponse clearDesembarque(UUID tripId, UUID stopId) {
+        Trip trip = findTripOwnedByUser(tripId);
+
+        TripStop stop = tripStopRepository.findById(stopId)
+                .orElseThrow(() -> new EntityNotFoundException("Parada não encontrada"));
+
+        if (!stop.getTrip().getId().equals(trip.getId())) {
+            throw new EntityNotFoundException("Parada não pertence a esta viagem");
+        }
+
+        stop.setDesembarque(null);
+        return TripStopMapper.toResponse(tripStopRepository.save(stop));
+    }
+
+    @Transactional
     public void deleteStops(UUID tripId, List<UUID> stopIds) {
         Trip trip = findTripOwnedByUser(tripId);
         List<TripStop> stops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);

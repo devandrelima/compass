@@ -43,6 +43,14 @@ public class TripStopController {
         return ResponseEntity.ok(service.updateStop(tripId, stopId, dto));
     }
 
+    @DeleteMapping("/{stopId}/desembarque")
+    public ResponseEntity<TripStopResponse> clearDesembarque(
+            @PathVariable UUID tripId,
+            @PathVariable UUID stopId
+    ) {
+        return ResponseEntity.ok(service.clearDesembarque(tripId, stopId));
+    }
+
     @DeleteMapping
     public ResponseEntity<Void> deleteStops(
             @PathVariable UUID tripId,
