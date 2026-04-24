@@ -15,6 +15,9 @@ public record TripStopRequest(
 
         @Valid
         @NotNull
-        AddressSnapshotRequest address
+        AddressSnapshotRequest embarque,
+
+        @Valid
+        AddressSnapshotRequest desembarque
 
 ) {}

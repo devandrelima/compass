@@ -16,7 +16,8 @@ public class TripStopMapper {
                 entity.getSequenceOrder(),
                 entity.getStopType(),
                 entity.getPriority(),
-                toSnapshotResponse(entity.getAddress())
+                toSnapshotResponse(entity.getEmbarque()),
+                toSnapshotResponse(entity.getDesembarque())
         );
     }
 

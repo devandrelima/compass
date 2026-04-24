@@ -59,7 +59,8 @@ public class TripStopService {
                     .sequenceOrder(nextOrder++)
                     .stopType(dto.stopType())
                     .priority(dto.priority() != null ? dto.priority() : StopPriority.NORMAL)
-                    .address(TripStopMapper.toSnapshot(dto.address()))
+                    .embarque(TripStopMapper.toSnapshot(dto.embarque()))
+                    .desembarque(TripStopMapper.toSnapshot(dto.desembarque()))
                     .build());
         }
 
@@ -94,6 +95,14 @@ public class TripStopService {
 
         if (dto.priority() != null) {
             stop.setPriority(dto.priority());
+        }
+
+        if (dto.embarque() != null) {
+            stop.setEmbarque(TripStopMapper.toSnapshot(dto.embarque()));
+        }
+
+        if (dto.desembarque() != null) {
+            stop.setDesembarque(TripStopMapper.toSnapshot(dto.desembarque()));
         }
 
         return TripStopMapper.toResponse(tripStopRepository.save(stop));

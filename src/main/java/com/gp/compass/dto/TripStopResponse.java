@@ -10,5 +10,6 @@ public record TripStopResponse(
         int sequenceOrder,
         StopType stopType, 
         StopPriority priority,
-        AddressSnapshotResponse address
+        AddressSnapshotResponse embarque,
+        AddressSnapshotResponse desembarque
 ) {}

@@ -54,15 +54,27 @@ public class TripStop {
 
     @Embedded
     @AttributeOverrides({
-        @AttributeOverride(name = "cep", column = @Column(name = "cep", nullable = false, length = 9)),
-        @AttributeOverride(name = "street", column = @Column(name = "street", nullable = false, length = 150)),
-        @AttributeOverride(name = "neighborhood", column = @Column(name = "neighborhood", nullable = false, length = 100)),
-        @AttributeOverride(name = "number", column = @Column(name = "number", nullable = false, length = 20)),
-        @AttributeOverride(name = "city", column = @Column(name = "city", nullable = false, length = 100)),
-        @AttributeOverride(name = "state", column = @Column(name = "state", nullable = false, length = 2)),
-        @AttributeOverride(name = "complement", column = @Column(name = "complement", length = 150))
+        @AttributeOverride(name = "cep", column = @Column(name = "embarque_cep", nullable = false, length = 9)),
+        @AttributeOverride(name = "street", column = @Column(name = "embarque_street", nullable = false, length = 150)),
+        @AttributeOverride(name = "neighborhood", column = @Column(name = "embarque_neighborhood", nullable = false, length = 100)),
+        @AttributeOverride(name = "number", column = @Column(name = "embarque_number", nullable = false, length = 20)),
+        @AttributeOverride(name = "city", column = @Column(name = "embarque_city", nullable = false, length = 100)),
+        @AttributeOverride(name = "state", column = @Column(name = "embarque_state", nullable = false, length = 2)),
+        @AttributeOverride(name = "complement", column = @Column(name = "embarque_complement", length = 150))
     })
-    private AddressSnapshot address;
+    private AddressSnapshot embarque;
+
+    @Embedded
+    @AttributeOverrides({
+        @AttributeOverride(name = "cep", column = @Column(name = "desembarque_cep", length = 9)),
+        @AttributeOverride(name = "street", column = @Column(name = "desembarque_street", length = 150)),
+        @AttributeOverride(name = "neighborhood", column = @Column(name = "desembarque_neighborhood", length = 100)),
+        @AttributeOverride(name = "number", column = @Column(name = "desembarque_number", length = 20)),
+        @AttributeOverride(name = "city", column = @Column(name = "desembarque_city", length = 100)),
+        @AttributeOverride(name = "state", column = @Column(name = "desembarque_state", length = 2)),
+        @AttributeOverride(name = "complement", column = @Column(name = "desembarque_complement", length = 150))
+    })
+    private AddressSnapshot desembarque;
 
     @Column(name = "created_at", updatable = false)
     @Builder.Default
