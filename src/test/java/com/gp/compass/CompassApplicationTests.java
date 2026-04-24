@@ -1,13 +1,13 @@
 package com.gp.compass;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
-class CompassApplicationTests {
+import static org.assertj.core.api.Assertions.assertThat;
 
-	@Test
-	void contextLoads() {
-	}
+class CompassApplicationTests extends BaseIntegrationTest {
 
+    @Test
+    void contextLoads() {
+        assertThat(port).isPositive();
+    }
 }
