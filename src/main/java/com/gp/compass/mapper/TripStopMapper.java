@@ -11,13 +11,19 @@ public class TripStopMapper {
     public static TripStopResponse toResponse(TripStop entity) {
         if (entity == null) return null;
 
+        boolean concluida = entity.isEmbarqueChecked() &&
+                (entity.getDesembarque() == null || entity.isDesembarqueChecked());
+
         return new TripStopResponse(
                 entity.getId(),
                 entity.getSequenceOrder(),
                 entity.getStopType(),
                 entity.getPriority(),
                 toSnapshotResponse(entity.getEmbarque()),
-                toSnapshotResponse(entity.getDesembarque())
+                toSnapshotResponse(entity.getDesembarque()),
+                entity.isEmbarqueChecked(),
+                entity.isDesembarqueChecked(),
+                concluida
         );
     }
 

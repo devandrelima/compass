@@ -69,12 +69,18 @@ public class TripStopService {
                 .toList();
     }
 
-    public List<TripStopResponse> getStops(UUID tripId) {
+    public List<TripStopResponse> getStops(UUID tripId, boolean somentePendentes) {
         Trip trip = findTripOwnedByUser(tripId);
         return tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip)
                 .stream()
+                .filter(s -> !somentePendentes || !isConcluida(s))
                 .map(TripStopMapper::toResponse)
                 .toList();
+    }
+
+    private boolean isConcluida(TripStop stop) {
+        return stop.isEmbarqueChecked() &&
+                (stop.getDesembarque() == null || stop.isDesembarqueChecked());
     }
 
     @Transactional
@@ -109,17 +115,37 @@ public class TripStopService {
     }
 
     @Transactional
-    public TripStopResponse clearDesembarque(UUID tripId, UUID stopId) {
-        Trip trip = findTripOwnedByUser(tripId);
+    public TripStopResponse toggleEmbarqueCheck(UUID tripId, UUID stopId) {
+        TripStop stop = findStopOwnedByTrip(tripId, stopId);
+        stop.setEmbarqueChecked(!stop.isEmbarqueChecked());
+        return TripStopMapper.toResponse(tripStopRepository.save(stop));
+    }
 
+    @Transactional
+    public TripStopResponse toggleDesembarqueCheck(UUID tripId, UUID stopId) {
+        TripStop stop = findStopOwnedByTrip(tripId, stopId);
+        if (stop.getDesembarque() == null) {
+            throw new IllegalStateException("Esta parada não possui desembarque definido");
+        }
+        stop.setDesembarqueChecked(!stop.isDesembarqueChecked());
+        return TripStopMapper.toResponse(tripStopRepository.save(stop));
+    }
+
+    private TripStop findStopOwnedByTrip(UUID tripId, UUID stopId) {
+        Trip trip = findTripOwnedByUser(tripId);
         TripStop stop = tripStopRepository.findById(stopId)
                 .orElseThrow(() -> new EntityNotFoundException("Parada não encontrada"));
-
         if (!stop.getTrip().getId().equals(trip.getId())) {
             throw new EntityNotFoundException("Parada não pertence a esta viagem");
         }
+        return stop;
+    }
 
+    @Transactional
+    public TripStopResponse clearDesembarque(UUID tripId, UUID stopId) {
+        TripStop stop = findStopOwnedByTrip(tripId, stopId);
         stop.setDesembarque(null);
+        stop.setDesembarqueChecked(false);
         return TripStopMapper.toResponse(tripStopRepository.save(stop));
     }
 

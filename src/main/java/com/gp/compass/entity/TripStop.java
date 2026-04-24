@@ -76,6 +76,14 @@ public class TripStop {
     })
     private AddressSnapshot desembarque;
 
+    @Column(name = "embarque_checked", nullable = false)
+    @Builder.Default
+    private boolean embarqueChecked = false;
+
+    @Column(name = "desembarque_checked", nullable = false)
+    @Builder.Default
+    private boolean desembarqueChecked = false;
+
     @Column(name = "created_at", updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

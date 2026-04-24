@@ -1,0 +1,2 @@
+ALTER TABLE trip_stops ADD COLUMN embarque_checked   BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE trip_stops ADD COLUMN desembarque_checked BOOLEAN NOT NULL DEFAULT FALSE;
