@@ -33,3 +33,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Env & secrets ###
+.env
+.env.*
+
+### Claude Code ###
+.claude/

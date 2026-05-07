@@ -44,22 +44,26 @@ public class TripStopService {
     @Transactional
     public List<TripStopResponse> addStops(UUID tripId, List<TripStopRequest> dtos) {
         Trip trip = findTripOwnedByUser(tripId);
-        List<TripStop> currentStops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
 
-        // Desloca o destino N posições para abrir espaço para todos os novos
-        TripStop destination = currentStops.get(currentStops.size() - 1);
-        destination.setSequenceOrder(destination.getSequenceOrder() + dtos.size());
-        tripStopRepository.save(destination);
+        List<TripStop> currentStops =
+                tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
 
-        int nextOrder = destination.getSequenceOrder() - dtos.size();
+        int nextOrder = currentStops.isEmpty()
+                ? 0
+                : currentStops.get(currentStops.size() - 1).getSequenceOrder() + 1;
+
         List<TripStop> newStops = new ArrayList<>();
+
         for (TripStopRequest dto : dtos) {
             newStops.add(TripStop.builder()
                     .trip(trip)
                     .sequenceOrder(nextOrder++)
                     .stopType(dto.stopType())
-                    .priority(dto.priority() != null ? dto.priority() : StopPriority.NORMAL)
-                    .address(TripStopMapper.toSnapshot(dto.address()))
+                    .priority(dto.priority() != null
+                            ? dto.priority()
+                            : StopPriority.NORMAL)
+                    .embarque(TripStopMapper.toSnapshot(dto.embarque()))
+                    .desembarque(TripStopMapper.toSnapshot(dto.desembarque()))
                     .build());
         }
 
@@ -68,12 +72,18 @@ public class TripStopService {
                 .toList();
     }
 
-    public List<TripStopResponse> getStops(UUID tripId) {
+    public List<TripStopResponse> getStops(UUID tripId, boolean somentePendentes) {
         Trip trip = findTripOwnedByUser(tripId);
         return tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip)
                 .stream()
+                .filter(s -> !somentePendentes || !isConcluida(s))
                 .map(TripStopMapper::toResponse)
                 .toList();
+    }
+
+    private boolean isConcluida(TripStop stop) {
+        return stop.isEmbarqueChecked() &&
+                (stop.getDesembarque() == null || stop.isDesembarqueChecked());
     }
 
     @Transactional
@@ -96,31 +106,67 @@ public class TripStopService {
             stop.setPriority(dto.priority());
         }
 
+        if (dto.embarque() != null) {
+            stop.setEmbarque(TripStopMapper.toSnapshot(dto.embarque()));
+        }
+
+        if (dto.desembarque() != null) {
+            stop.setDesembarque(TripStopMapper.toSnapshot(dto.desembarque()));
+        }
+
+        return TripStopMapper.toResponse(tripStopRepository.save(stop));
+    }
+
+    @Transactional
+    public TripStopResponse toggleEmbarqueCheck(UUID tripId, UUID stopId) {
+        TripStop stop = findStopOwnedByTrip(tripId, stopId);
+        stop.setEmbarqueChecked(!stop.isEmbarqueChecked());
+        return TripStopMapper.toResponse(tripStopRepository.save(stop));
+    }
+
+    @Transactional
+    public TripStopResponse toggleDesembarqueCheck(UUID tripId, UUID stopId) {
+        TripStop stop = findStopOwnedByTrip(tripId, stopId);
+        if (stop.getDesembarque() == null) {
+            throw new IllegalStateException("Esta parada não possui desembarque definido");
+        }
+        stop.setDesembarqueChecked(!stop.isDesembarqueChecked());
+        return TripStopMapper.toResponse(tripStopRepository.save(stop));
+    }
+
+    private TripStop findStopOwnedByTrip(UUID tripId, UUID stopId) {
+        Trip trip = findTripOwnedByUser(tripId);
+        TripStop stop = tripStopRepository.findById(stopId)
+                .orElseThrow(() -> new EntityNotFoundException("Parada não encontrada"));
+        if (!stop.getTrip().getId().equals(trip.getId())) {
+            throw new EntityNotFoundException("Parada não pertence a esta viagem");
+        }
+        return stop;
+    }
+
+    @Transactional
+    public TripStopResponse clearDesembarque(UUID tripId, UUID stopId) {
+        TripStop stop = findStopOwnedByTrip(tripId, stopId);
+        stop.setDesembarque(null);
+        stop.setDesembarqueChecked(false);
         return TripStopMapper.toResponse(tripStopRepository.save(stop));
     }
 
     @Transactional
     public void deleteStops(UUID tripId, List<UUID> stopIds) {
         Trip trip = findTripOwnedByUser(tripId);
-        List<TripStop> stops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
 
-        Set<Integer> protectedOrders = Set.of(
-                stops.get(0).getSequenceOrder(),
-                stops.get(stops.size() - 1).getSequenceOrder()
-        );
+        List<TripStop> stops =
+                tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
 
         List<TripStop> toDelete = stops.stream()
                 .filter(s -> stopIds.contains(s.getId()))
                 .toList();
 
         if (toDelete.size() != stopIds.size()) {
-            throw new EntityNotFoundException("Uma ou mais paradas não foram encontradas nesta viagem");
-        }
-
-        boolean hasProtected = toDelete.stream()
-                .anyMatch(s -> protectedOrders.contains(s.getSequenceOrder()));
-        if (hasProtected) {
-            throw new IllegalStateException("Não é possível remover a parada de início ou fim da viagem");
+            throw new EntityNotFoundException(
+                    "Uma ou mais paradas não foram encontradas nesta viagem"
+            );
         }
 
         tripStopRepository.deleteAll(toDelete);

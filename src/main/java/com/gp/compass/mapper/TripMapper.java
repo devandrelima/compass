@@ -23,7 +23,8 @@ public class TripMapper {
             TripStop stop = TripStop.builder()
                     .trip(trip)
                     .sequenceOrder(i)
-                    .address(TripStopMapper.toSnapshot(dto.stops().get(i).address()))
+                    .embarque(TripStopMapper.toSnapshot(dto.stops().get(i).embarque()))
+                    .desembarque(TripStopMapper.toSnapshot(dto.stops().get(i).desembarque()))
                     .stopType(dto.stops().get(i).stopType())
                     .priority(dto.stops().get(i).priority())
                     .build();

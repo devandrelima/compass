@@ -22,8 +22,11 @@ public class TripStopController {
     private final TripStopService service;
 
     @GetMapping
-    public ResponseEntity<List<TripStopResponse>> getStops(@PathVariable UUID tripId) {
-        return ResponseEntity.ok(service.getStops(tripId));
+    public ResponseEntity<List<TripStopResponse>> getStops(
+            @PathVariable UUID tripId,
+            @RequestParam(defaultValue = "false") boolean somentePendentes
+    ) {
+        return ResponseEntity.ok(service.getStops(tripId, somentePendentes));
     }
 
     @PostMapping
@@ -41,6 +44,30 @@ public class TripStopController {
             @RequestBody @Valid UpdateTripStopRequest dto
     ) {
         return ResponseEntity.ok(service.updateStop(tripId, stopId, dto));
+    }
+
+    @PatchMapping("/{stopId}/embarque/check")
+    public ResponseEntity<TripStopResponse> toggleEmbarqueCheck(
+            @PathVariable UUID tripId,
+            @PathVariable UUID stopId
+    ) {
+        return ResponseEntity.ok(service.toggleEmbarqueCheck(tripId, stopId));
+    }
+
+    @PatchMapping("/{stopId}/desembarque/check")
+    public ResponseEntity<TripStopResponse> toggleDesembarqueCheck(
+            @PathVariable UUID tripId,
+            @PathVariable UUID stopId
+    ) {
+        return ResponseEntity.ok(service.toggleDesembarqueCheck(tripId, stopId));
+    }
+
+    @DeleteMapping("/{stopId}/desembarque")
+    public ResponseEntity<TripStopResponse> clearDesembarque(
+            @PathVariable UUID tripId,
+            @PathVariable UUID stopId
+    ) {
+        return ResponseEntity.ok(service.clearDesembarque(tripId, stopId));
     }
 
     @DeleteMapping
