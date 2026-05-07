@@ -44,21 +44,24 @@ public class TripStopService {
     @Transactional
     public List<TripStopResponse> addStops(UUID tripId, List<TripStopRequest> dtos) {
         Trip trip = findTripOwnedByUser(tripId);
-        List<TripStop> currentStops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
 
-        // Desloca o destino N posições para abrir espaço para todos os novos
-        TripStop destination = currentStops.get(currentStops.size() - 1);
-        destination.setSequenceOrder(destination.getSequenceOrder() + dtos.size());
-        tripStopRepository.save(destination);
+        List<TripStop> currentStops =
+                tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
 
-        int nextOrder = destination.getSequenceOrder() - dtos.size();
+        int nextOrder = currentStops.isEmpty()
+                ? 0
+                : currentStops.get(currentStops.size() - 1).getSequenceOrder() + 1;
+
         List<TripStop> newStops = new ArrayList<>();
+
         for (TripStopRequest dto : dtos) {
             newStops.add(TripStop.builder()
                     .trip(trip)
                     .sequenceOrder(nextOrder++)
                     .stopType(dto.stopType())
-                    .priority(dto.priority() != null ? dto.priority() : StopPriority.NORMAL)
+                    .priority(dto.priority() != null
+                            ? dto.priority()
+                            : StopPriority.NORMAL)
                     .embarque(TripStopMapper.toSnapshot(dto.embarque()))
                     .desembarque(TripStopMapper.toSnapshot(dto.desembarque()))
                     .build());
@@ -152,25 +155,18 @@ public class TripStopService {
     @Transactional
     public void deleteStops(UUID tripId, List<UUID> stopIds) {
         Trip trip = findTripOwnedByUser(tripId);
-        List<TripStop> stops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
 
-        Set<Integer> protectedOrders = Set.of(
-                stops.get(0).getSequenceOrder(),
-                stops.get(stops.size() - 1).getSequenceOrder()
-        );
+        List<TripStop> stops =
+                tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
 
         List<TripStop> toDelete = stops.stream()
                 .filter(s -> stopIds.contains(s.getId()))
                 .toList();
 
         if (toDelete.size() != stopIds.size()) {
-            throw new EntityNotFoundException("Uma ou mais paradas não foram encontradas nesta viagem");
-        }
-
-        boolean hasProtected = toDelete.stream()
-                .anyMatch(s -> protectedOrders.contains(s.getSequenceOrder()));
-        if (hasProtected) {
-            throw new IllegalStateException("Não é possível remover a parada de início ou fim da viagem");
+            throw new EntityNotFoundException(
+                    "Uma ou mais paradas não foram encontradas nesta viagem"
+            );
         }
 
         tripStopRepository.deleteAll(toDelete);
