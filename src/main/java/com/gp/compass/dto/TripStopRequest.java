@@ -6,12 +6,16 @@ import com.gp.compass.entity.StopType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
+import java.util.UUID;
+
 public record TripStopRequest(
 
         @NotNull
         StopType stopType,
 
         StopPriority priority,
+
+        UUID clientId,
 
         @Valid
         @NotNull

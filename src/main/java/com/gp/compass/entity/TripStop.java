@@ -40,6 +40,10 @@ public class TripStop {
     @JoinColumn(name = "trip_id", nullable = false)
     private Trip trip;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "client_id", nullable = true)
+    private Client client;
+
     @Column(name = "sequence_order", nullable = false)
     private int sequenceOrder;
 

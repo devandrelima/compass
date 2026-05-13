@@ -10,6 +10,7 @@ public record TripStopResponse(
         int sequenceOrder,
         StopType stopType,
         StopPriority priority,
+        UUID clientId,
         AddressSnapshotResponse embarque,
         AddressSnapshotResponse desembarque,
         boolean embarqueChecked,

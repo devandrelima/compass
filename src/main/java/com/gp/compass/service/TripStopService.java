@@ -2,7 +2,6 @@ package com.gp.compass.service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -11,11 +10,14 @@ import org.springframework.stereotype.Service;
 import com.gp.compass.dto.TripStopRequest;
 import com.gp.compass.dto.TripStopResponse;
 import com.gp.compass.dto.UpdateTripStopRequest;
+import com.gp.compass.entity.Client;
 import com.gp.compass.entity.StopPriority;
 import com.gp.compass.entity.Trip;
+import com.gp.compass.entity.TripStatus;
 import com.gp.compass.entity.TripStop;
 import com.gp.compass.entity.User;
 import com.gp.compass.mapper.TripStopMapper;
+import com.gp.compass.repository.ClientRepository;
 import com.gp.compass.repository.TripRepository;
 import com.gp.compass.repository.TripStopRepository;
 
@@ -29,6 +31,7 @@ public class TripStopService {
 
     private final TripStopRepository tripStopRepository;
     private final TripRepository tripRepository;
+    private final ClientRepository clientRepository;
 
     private User authenticatedUser() {
         return (User) SecurityContextHolder.getContext()
@@ -41,9 +44,22 @@ public class TripStopService {
                 .orElseThrow(() -> new EntityNotFoundException("Viagem não encontrada"));
     }
 
+    private void assertNotFinished(Trip trip) {
+        if (trip.getStatus() == TripStatus.FINISHED) {
+            throw new IllegalStateException("Não é possível modificar uma viagem finalizada");
+        }
+    }
+
+    private Client resolveClient(UUID clientId) {
+        if (clientId == null) return null;
+        return clientRepository.findByIdAndUser(clientId, authenticatedUser())
+                .orElseThrow(() -> new EntityNotFoundException("Cliente não encontrado"));
+    }
+
     @Transactional
     public List<TripStopResponse> addStops(UUID tripId, List<TripStopRequest> dtos) {
         Trip trip = findTripOwnedByUser(tripId);
+        assertNotFinished(trip);
 
         List<TripStop> currentStops =
                 tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
@@ -62,6 +78,7 @@ public class TripStopService {
                     .priority(dto.priority() != null
                             ? dto.priority()
                             : StopPriority.NORMAL)
+                    .client(resolveClient(dto.clientId()))
                     .embarque(TripStopMapper.toSnapshot(dto.embarque()))
                     .desembarque(TripStopMapper.toSnapshot(dto.desembarque()))
                     .build());
@@ -88,8 +105,8 @@ public class TripStopService {
 
     @Transactional
     public TripStopResponse updateStop(UUID tripId, UUID stopId, UpdateTripStopRequest dto) {
-
         Trip trip = findTripOwnedByUser(tripId);
+        assertNotFinished(trip);
 
         TripStop stop = tripStopRepository.findById(stopId)
                 .orElseThrow(() -> new EntityNotFoundException("Parada não encontrada"));
@@ -106,6 +123,10 @@ public class TripStopService {
             stop.setPriority(dto.priority());
         }
 
+        if (dto.clientId() != null) {
+            stop.setClient(resolveClient(dto.clientId()));
+        }
+
         if (dto.embarque() != null) {
             stop.setEmbarque(TripStopMapper.toSnapshot(dto.embarque()));
         }
@@ -120,6 +141,7 @@ public class TripStopService {
     @Transactional
     public TripStopResponse toggleEmbarqueCheck(UUID tripId, UUID stopId) {
         TripStop stop = findStopOwnedByTrip(tripId, stopId);
+        assertNotFinished(stop.getTrip());
         stop.setEmbarqueChecked(!stop.isEmbarqueChecked());
         return TripStopMapper.toResponse(tripStopRepository.save(stop));
     }
@@ -127,6 +149,7 @@ public class TripStopService {
     @Transactional
     public TripStopResponse toggleDesembarqueCheck(UUID tripId, UUID stopId) {
         TripStop stop = findStopOwnedByTrip(tripId, stopId);
+        assertNotFinished(stop.getTrip());
         if (stop.getDesembarque() == null) {
             throw new IllegalStateException("Esta parada não possui desembarque definido");
         }
@@ -147,6 +170,7 @@ public class TripStopService {
     @Transactional
     public TripStopResponse clearDesembarque(UUID tripId, UUID stopId) {
         TripStop stop = findStopOwnedByTrip(tripId, stopId);
+        assertNotFinished(stop.getTrip());
         stop.setDesembarque(null);
         stop.setDesembarqueChecked(false);
         return TripStopMapper.toResponse(tripStopRepository.save(stop));
@@ -155,6 +179,7 @@ public class TripStopService {
     @Transactional
     public void deleteStops(UUID tripId, List<UUID> stopIds) {
         Trip trip = findTripOwnedByUser(tripId);
+        assertNotFinished(trip);
 
         List<TripStop> stops =
                 tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
