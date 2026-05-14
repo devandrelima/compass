@@ -7,5 +7,7 @@ public record AddressSnapshotResponse(
         String number,
         String city,
         String state,
-        String complement
+        String complement,
+        Double lat,
+        Double lng
 ) {}

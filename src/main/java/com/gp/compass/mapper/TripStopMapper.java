@@ -39,6 +39,8 @@ public class TripStopMapper {
                 .city(dto.city())
                 .state(dto.state())
                 .complement(dto.complement())
+                .lat(dto.lat())
+                .lng(dto.lng())
                 .build();
     }
 
@@ -52,7 +54,9 @@ public class TripStopMapper {
                 snapshot.getNumber(),
                 snapshot.getCity(),
                 snapshot.getState(),
-                snapshot.getComplement()
+                snapshot.getComplement(),
+                snapshot.getLat(),
+                snapshot.getLng()
         );
     }
 }

@@ -64,7 +64,9 @@ public class TripStop {
         @AttributeOverride(name = "number", column = @Column(name = "embarque_number", nullable = false, length = 20)),
         @AttributeOverride(name = "city", column = @Column(name = "embarque_city", nullable = false, length = 100)),
         @AttributeOverride(name = "state", column = @Column(name = "embarque_state", nullable = false, length = 2)),
-        @AttributeOverride(name = "complement", column = @Column(name = "embarque_complement", length = 150))
+        @AttributeOverride(name = "complement", column = @Column(name = "embarque_complement", length = 150)),
+        @AttributeOverride(name = "lat", column = @Column(name = "embarque_lat")),
+        @AttributeOverride(name = "lng", column = @Column(name = "embarque_lng"))
     })
     private AddressSnapshot embarque;
 
@@ -76,7 +78,9 @@ public class TripStop {
         @AttributeOverride(name = "number", column = @Column(name = "desembarque_number", length = 20)),
         @AttributeOverride(name = "city", column = @Column(name = "desembarque_city", length = 100)),
         @AttributeOverride(name = "state", column = @Column(name = "desembarque_state", length = 2)),
-        @AttributeOverride(name = "complement", column = @Column(name = "desembarque_complement", length = 150))
+        @AttributeOverride(name = "complement", column = @Column(name = "desembarque_complement", length = 150)),
+        @AttributeOverride(name = "lat", column = @Column(name = "desembarque_lat")),
+        @AttributeOverride(name = "lng", column = @Column(name = "desembarque_lng"))
     })
     private AddressSnapshot desembarque;
 

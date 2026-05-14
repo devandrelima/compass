@@ -31,5 +31,9 @@ public record AddressSnapshotRequest(
         String state,
 
         @Size(max = 150, message = "Complemento deve ter menos de 150 caracteres")
-        String complement
+        String complement,
+
+        Double lat,
+
+        Double lng
 ) {}
