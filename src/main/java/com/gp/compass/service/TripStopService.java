@@ -2,7 +2,9 @@ package com.gp.compass.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class TripStopService {
     private final TripStopRepository tripStopRepository;
     private final TripRepository tripRepository;
     private final ClientRepository clientRepository;
+    private final RouteOptimizationService routeOptimizationService;
 
     private User authenticatedUser() {
         return (User) SecurityContextHolder.getContext()
@@ -203,5 +206,44 @@ public class TripStopService {
         if (isFirst || isLast) {
             throw new IllegalStateException("Não é possível remover a parada de início ou fim da viagem");
         }
+    }
+
+    @Transactional
+    public List<TripStopResponse> optimizeTrip(UUID tripId) {
+        Trip trip = findTripOwnedByUser(tripId);
+        assertNotFinished(trip);
+
+        List<TripStop> stops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
+
+        if (stops.isEmpty()) {
+            throw new IllegalStateException("A viagem não possui paradas");
+        }
+
+        boolean missingCoords = stops.stream().anyMatch(s ->
+                s.getEmbarque() == null ||
+                s.getEmbarque().getLat() == null ||
+                s.getEmbarque().getLng() == null
+        );
+        if (missingCoords) {
+            throw new IllegalStateException(
+                    "Todas as paradas precisam ter coordenadas para otimizar a rota. " +
+                    "Recrie as paradas sem coordenadas para habilitá-las."
+            );
+        }
+
+        List<UUID> orderedIds = routeOptimizationService.optimize(stops);
+
+        Map<UUID, TripStop> byId = stops.stream()
+                .collect(Collectors.toMap(TripStop::getId, s -> s));
+
+        for (int i = 0; i < orderedIds.size(); i++) {
+            byId.get(orderedIds.get(i)).setSequenceOrder(i);
+        }
+
+        tripStopRepository.saveAll(stops);
+
+        return orderedIds.stream()
+                .map(id -> TripStopMapper.toResponse(byId.get(id)))
+                .toList();
     }
 }

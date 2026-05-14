@@ -78,4 +78,9 @@ public class TripStopController {
         service.deleteStops(tripId, stopIds);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/optimize")
+    public ResponseEntity<List<TripStopResponse>> optimize(@PathVariable UUID tripId) {
+        return ResponseEntity.ok(service.optimizeTrip(tripId));
+    }
 }
