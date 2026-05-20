@@ -9,6 +9,8 @@ import java.util.stream.Collectors;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import com.gp.compass.dto.OptimizeResultItem;
+import com.gp.compass.dto.OptimizeStopInput;
 import com.gp.compass.dto.TripStopRequest;
 import com.gp.compass.dto.TripStopResponse;
 import com.gp.compass.dto.UpdateTripStopRequest;
@@ -209,41 +211,45 @@ public class TripStopService {
     }
 
     @Transactional
-    public List<TripStopResponse> optimizeTrip(UUID tripId) {
+    public List<OptimizeResultItem> optimizeTrip(UUID tripId, List<OptimizeStopInput> inputs) {
         Trip trip = findTripOwnedByUser(tripId);
         assertNotFinished(trip);
 
-        List<TripStop> stops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
-
-        if (stops.isEmpty()) {
-            throw new IllegalStateException("A viagem não possui paradas");
+        if (inputs == null || inputs.isEmpty()) {
+            throw new IllegalStateException("A lista de paradas não pode ser vazia");
         }
 
-        boolean missingCoords = stops.stream().anyMatch(s ->
-                s.getEmbarque() == null ||
-                s.getEmbarque().getLat() == null ||
-                s.getEmbarque().getLng() == null
-        );
+        boolean missingCoords = inputs.stream()
+                .anyMatch(s -> s.lat() == null || s.lng() == null);
         if (missingCoords) {
             throw new IllegalStateException(
-                    "Todas as paradas precisam ter coordenadas para otimizar a rota. " +
-                    "Recrie as paradas sem coordenadas para habilitá-las."
+                    "Todas as paradas precisam ter coordenadas para otimizar a rota."
             );
         }
 
-        List<UUID> orderedIds = routeOptimizationService.optimize(stops);
+        List<UUID> orderedIds = routeOptimizationService.optimize(inputs);
 
-        Map<UUID, TripStop> byId = stops.stream()
+        Map<UUID, OptimizeStopInput> inputById = inputs.stream()
+                .collect(Collectors.toMap(OptimizeStopInput::id, s -> s));
+
+        List<TripStop> stops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
+        Map<UUID, TripStop> stopById = stops.stream()
                 .collect(Collectors.toMap(TripStop::getId, s -> s));
 
         for (int i = 0; i < orderedIds.size(); i++) {
-            byId.get(orderedIds.get(i)).setSequenceOrder(i);
+            TripStop stop = stopById.get(orderedIds.get(i));
+            if (stop != null) {
+                stop.setSequenceOrder(i);
+            }
         }
 
         tripStopRepository.saveAll(stops);
 
-        return orderedIds.stream()
-                .map(id -> TripStopMapper.toResponse(byId.get(id)))
-                .toList();
+        List<OptimizeResultItem> result = new ArrayList<>();
+        for (int i = 0; i < orderedIds.size(); i++) {
+            OptimizeStopInput input = inputById.get(orderedIds.get(i));
+            result.add(new OptimizeResultItem(input.lat(), input.lng(), i + 1, input.clientName()));
+        }
+        return result;
     }
 }
