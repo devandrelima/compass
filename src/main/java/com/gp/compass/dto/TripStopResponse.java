@@ -7,10 +7,12 @@ import com.gp.compass.entity.StopType;
 
 public record TripStopResponse(
         UUID id,
-        int sequenceOrder,
+        int embarqueSequenceOrder,
+        Integer desembarqueSequenceOrder,
         StopType stopType,
         StopPriority priority,
         UUID clientId,
+        String clientName,
         AddressSnapshotResponse embarque,
         AddressSnapshotResponse desembarque,
         boolean embarqueChecked,

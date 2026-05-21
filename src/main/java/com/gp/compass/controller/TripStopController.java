@@ -1,8 +1,5 @@
 package com.gp.compass.controller;
 
-import com.gp.compass.dto.AddressSnapshotRequest;
-import com.gp.compass.dto.OptimizeResultItem;
-import com.gp.compass.dto.OptimizeStopInput;
 import com.gp.compass.dto.TripStopRequest;
 import com.gp.compass.dto.TripStopResponse;
 import com.gp.compass.dto.UpdateTripStopRequest;
@@ -82,10 +79,7 @@ public class TripStopController {
     }
 
     @PostMapping("/optimize")
-    public ResponseEntity<List<OptimizeResultItem>> optimize(
-            @PathVariable UUID tripId,
-            @RequestBody @Valid List<OptimizeStopInput> inputs
-    ) {
-        return ResponseEntity.ok(service.optimizeTrip(tripId, inputs));
+    public ResponseEntity<List<TripStopResponse>> optimize(@PathVariable UUID tripId) {
+        return ResponseEntity.ok(service.optimizeTrip(tripId));
     }
 }

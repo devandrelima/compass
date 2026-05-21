@@ -44,8 +44,11 @@ public class TripStop {
     @JoinColumn(name = "client_id", nullable = true)
     private Client client;
 
-    @Column(name = "sequence_order", nullable = false)
-    private int sequenceOrder;
+    @Column(name = "embarque_sequence_order", nullable = false)
+    private int embarqueSequenceOrder;
+
+    @Column(name = "desembarque_sequence_order")
+    private Integer desembarqueSequenceOrder;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "stop_type", nullable = false, length = 20)

@@ -10,7 +10,7 @@ import java.util.UUID;
 
 public interface TripStopRepository extends JpaRepository<TripStop, UUID> {
 
-    List<TripStop> findAllByTripOrderBySequenceOrderAsc(Trip trip);
+    List<TripStop> findAllByTripOrderByEmbarqueSequenceOrderAsc(Trip trip);
 
     Optional<TripStop> findByIdAndTrip(UUID id, Trip trip);
 

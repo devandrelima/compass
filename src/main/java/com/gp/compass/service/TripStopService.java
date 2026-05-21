@@ -1,6 +1,7 @@
 package com.gp.compass.service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -9,8 +10,6 @@ import java.util.stream.Collectors;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
-import com.gp.compass.dto.OptimizeResultItem;
-import com.gp.compass.dto.OptimizeStopInput;
 import com.gp.compass.dto.TripStopRequest;
 import com.gp.compass.dto.TripStopResponse;
 import com.gp.compass.dto.UpdateTripStopRequest;
@@ -67,22 +66,30 @@ public class TripStopService {
         assertNotFinished(trip);
 
         List<TripStop> currentStops =
-                tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
+                tripStopRepository.findAllByTripOrderByEmbarqueSequenceOrderAsc(trip);
 
         int nextOrder = currentStops.isEmpty()
                 ? 0
-                : currentStops.get(currentStops.size() - 1).getSequenceOrder() + 1;
+                : currentStops.stream()
+                        .mapToInt(s -> {
+                            int max = s.getEmbarqueSequenceOrder();
+                            if (s.getDesembarqueSequenceOrder() != null) {
+                                max = Math.max(max, s.getDesembarqueSequenceOrder());
+                            }
+                            return max;
+                        })
+                        .max()
+                        .orElse(-1) + 1;
 
         List<TripStop> newStops = new ArrayList<>();
 
         for (TripStopRequest dto : dtos) {
             newStops.add(TripStop.builder()
                     .trip(trip)
-                    .sequenceOrder(nextOrder++)
+                    .embarqueSequenceOrder(nextOrder++)
+                    .desembarqueSequenceOrder(null)
                     .stopType(dto.stopType())
-                    .priority(dto.priority() != null
-                            ? dto.priority()
-                            : StopPriority.NORMAL)
+                    .priority(dto.priority() != null ? dto.priority() : StopPriority.NORMAL)
                     .client(resolveClient(dto.clientId()))
                     .embarque(TripStopMapper.toSnapshot(dto.embarque()))
                     .desembarque(TripStopMapper.toSnapshot(dto.desembarque()))
@@ -96,7 +103,7 @@ public class TripStopService {
 
     public List<TripStopResponse> getStops(UUID tripId, boolean somentePendentes) {
         Trip trip = findTripOwnedByUser(tripId);
-        return tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip)
+        return tripStopRepository.findAllByTripOrderByEmbarqueSequenceOrderAsc(trip)
                 .stream()
                 .filter(s -> !somentePendentes || !isConcluida(s))
                 .map(TripStopMapper::toResponse)
@@ -120,25 +127,11 @@ public class TripStopService {
             throw new EntityNotFoundException("Parada não pertence a esta viagem");
         }
 
-        if (dto.stopType() != null) {
-            stop.setStopType(dto.stopType());
-        }
-
-        if (dto.priority() != null) {
-            stop.setPriority(dto.priority());
-        }
-
-        if (dto.clientId() != null) {
-            stop.setClient(resolveClient(dto.clientId()));
-        }
-
-        if (dto.embarque() != null) {
-            stop.setEmbarque(TripStopMapper.toSnapshot(dto.embarque()));
-        }
-
-        if (dto.desembarque() != null) {
-            stop.setDesembarque(TripStopMapper.toSnapshot(dto.desembarque()));
-        }
+        if (dto.stopType() != null) stop.setStopType(dto.stopType());
+        if (dto.priority() != null) stop.setPriority(dto.priority());
+        if (dto.clientId() != null) stop.setClient(resolveClient(dto.clientId()));
+        if (dto.embarque() != null) stop.setEmbarque(TripStopMapper.toSnapshot(dto.embarque()));
+        if (dto.desembarque() != null) stop.setDesembarque(TripStopMapper.toSnapshot(dto.desembarque()));
 
         return TripStopMapper.toResponse(tripStopRepository.save(stop));
     }
@@ -162,22 +155,13 @@ public class TripStopService {
         return TripStopMapper.toResponse(tripStopRepository.save(stop));
     }
 
-    private TripStop findStopOwnedByTrip(UUID tripId, UUID stopId) {
-        Trip trip = findTripOwnedByUser(tripId);
-        TripStop stop = tripStopRepository.findById(stopId)
-                .orElseThrow(() -> new EntityNotFoundException("Parada não encontrada"));
-        if (!stop.getTrip().getId().equals(trip.getId())) {
-            throw new EntityNotFoundException("Parada não pertence a esta viagem");
-        }
-        return stop;
-    }
-
     @Transactional
     public TripStopResponse clearDesembarque(UUID tripId, UUID stopId) {
         TripStop stop = findStopOwnedByTrip(tripId, stopId);
         assertNotFinished(stop.getTrip());
         stop.setDesembarque(null);
         stop.setDesembarqueChecked(false);
+        stop.setDesembarqueSequenceOrder(null);
         return TripStopMapper.toResponse(tripStopRepository.save(stop));
     }
 
@@ -187,69 +171,73 @@ public class TripStopService {
         assertNotFinished(trip);
 
         List<TripStop> stops =
-                tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
+                tripStopRepository.findAllByTripOrderByEmbarqueSequenceOrderAsc(trip);
 
         List<TripStop> toDelete = stops.stream()
                 .filter(s -> stopIds.contains(s.getId()))
                 .toList();
 
         if (toDelete.size() != stopIds.size()) {
-            throw new EntityNotFoundException(
-                    "Uma ou mais paradas não foram encontradas nesta viagem"
-            );
+            throw new EntityNotFoundException("Uma ou mais paradas não foram encontradas nesta viagem");
         }
 
         tripStopRepository.deleteAll(toDelete);
     }
 
-    private void validateNotFirstOrLast(TripStop stop, List<TripStop> stops) {
-        boolean isFirst = stop.getSequenceOrder() == stops.get(0).getSequenceOrder();
-        boolean isLast = stop.getSequenceOrder() == stops.get(stops.size() - 1).getSequenceOrder();
-        if (isFirst || isLast) {
-            throw new IllegalStateException("Não é possível remover a parada de início ou fim da viagem");
-        }
-    }
-
     @Transactional
-    public List<OptimizeResultItem> optimizeTrip(UUID tripId, List<OptimizeStopInput> inputs) {
+    public List<TripStopResponse> optimizeTrip(UUID tripId) {
         Trip trip = findTripOwnedByUser(tripId);
         assertNotFinished(trip);
 
-        if (inputs == null || inputs.isEmpty()) {
-            throw new IllegalStateException("A lista de paradas não pode ser vazia");
+        List<TripStop> stops = tripStopRepository.findAllByTripOrderByEmbarqueSequenceOrderAsc(trip);
+
+        if (stops.isEmpty()) {
+            throw new IllegalStateException("A viagem não possui paradas para otimizar");
         }
 
-        boolean missingCoords = inputs.stream()
-                .anyMatch(s -> s.lat() == null || s.lng() == null);
-        if (missingCoords) {
-            throw new IllegalStateException(
-                    "Todas as paradas precisam ter coordenadas para otimizar a rota."
-            );
-        }
-
-        List<UUID> orderedIds = routeOptimizationService.optimize(inputs);
-
-        Map<UUID, OptimizeStopInput> inputById = inputs.stream()
-                .collect(Collectors.toMap(OptimizeStopInput::id, s -> s));
-
-        List<TripStop> stops = tripStopRepository.findAllByTripOrderBySequenceOrderAsc(trip);
-        Map<UUID, TripStop> stopById = stops.stream()
-                .collect(Collectors.toMap(TripStop::getId, s -> s));
-
-        for (int i = 0; i < orderedIds.size(); i++) {
-            TripStop stop = stopById.get(orderedIds.get(i));
-            if (stop != null) {
-                stop.setSequenceOrder(i);
+        for (TripStop stop : stops) {
+            if (stop.getEmbarque() == null
+                    || stop.getEmbarque().getLat() == null
+                    || stop.getEmbarque().getLng() == null) {
+                throw new IllegalStateException(
+                        "Todas as paradas precisam ter coordenadas de embarque para otimizar a rota.");
+            }
+            if (stop.getDesembarque() != null
+                    && (stop.getDesembarque().getLat() == null || stop.getDesembarque().getLng() == null)) {
+                throw new IllegalStateException(
+                        "Todas as paradas com desembarque precisam ter coordenadas de desembarque para otimizar a rota.");
             }
         }
 
-        tripStopRepository.saveAll(stops);
+        List<RouteOptimizationService.Waypoint> orderedWaypoints = routeOptimizationService.optimize(stops);
 
-        List<OptimizeResultItem> result = new ArrayList<>();
-        for (int i = 0; i < orderedIds.size(); i++) {
-            OptimizeStopInput input = inputById.get(orderedIds.get(i));
-            result.add(new OptimizeResultItem(input.lat(), input.lng(), i + 1, input.clientName()));
+        Map<UUID, TripStop> stopById = stops.stream()
+                .collect(Collectors.toMap(TripStop::getId, s -> s));
+
+        for (int i = 0; i < orderedWaypoints.size(); i++) {
+            RouteOptimizationService.Waypoint wp = orderedWaypoints.get(i);
+            TripStop stop = stopById.get(wp.stopId());
+            if (stop == null) continue;
+            if (wp.isDesembarque()) {
+                stop.setDesembarqueSequenceOrder(i);
+            } else {
+                stop.setEmbarqueSequenceOrder(i);
+            }
         }
-        return result;
+
+        return tripStopRepository.saveAll(stops).stream()
+                .sorted(Comparator.comparingInt(TripStop::getEmbarqueSequenceOrder))
+                .map(TripStopMapper::toResponse)
+                .toList();
+    }
+
+    private TripStop findStopOwnedByTrip(UUID tripId, UUID stopId) {
+        Trip trip = findTripOwnedByUser(tripId);
+        TripStop stop = tripStopRepository.findById(stopId)
+                .orElseThrow(() -> new EntityNotFoundException("Parada não encontrada"));
+        if (!stop.getTrip().getId().equals(trip.getId())) {
+            throw new EntityNotFoundException("Parada não pertence a esta viagem");
+        }
+        return stop;
     }
 }

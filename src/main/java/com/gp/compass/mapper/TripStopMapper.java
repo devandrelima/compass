@@ -16,10 +16,12 @@ public class TripStopMapper {
 
         return new TripStopResponse(
                 entity.getId(),
-                entity.getSequenceOrder(),
+                entity.getEmbarqueSequenceOrder(),
+                entity.getDesembarqueSequenceOrder(),
                 entity.getStopType(),
                 entity.getPriority(),
                 entity.getClient() != null ? entity.getClient().getId() : null,
+                entity.getClient() != null ? entity.getClient().getName() : null,
                 toSnapshotResponse(entity.getEmbarque()),
                 toSnapshotResponse(entity.getDesembarque()),
                 entity.isEmbarqueChecked(),
