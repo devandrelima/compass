@@ -25,7 +25,7 @@ public class Trip {
     private String title;
 
     @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("sequenceOrder ASC")
+    @OrderBy("embarqueSequenceOrder ASC")
     @Builder.Default
     private List<TripStop> stops = new ArrayList<>();
 

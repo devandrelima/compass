@@ -16,10 +16,12 @@ public class TripStopMapper {
 
         return new TripStopResponse(
                 entity.getId(),
-                entity.getSequenceOrder(),
+                entity.getEmbarqueSequenceOrder(),
+                entity.getDesembarqueSequenceOrder(),
                 entity.getStopType(),
                 entity.getPriority(),
                 entity.getClient() != null ? entity.getClient().getId() : null,
+                entity.getClient() != null ? entity.getClient().getName() : null,
                 toSnapshotResponse(entity.getEmbarque()),
                 toSnapshotResponse(entity.getDesembarque()),
                 entity.isEmbarqueChecked(),
@@ -39,6 +41,8 @@ public class TripStopMapper {
                 .city(dto.city())
                 .state(dto.state())
                 .complement(dto.complement())
+                .lat(dto.lat())
+                .lng(dto.lng())
                 .build();
     }
 
@@ -52,7 +56,9 @@ public class TripStopMapper {
                 snapshot.getNumber(),
                 snapshot.getCity(),
                 snapshot.getState(),
-                snapshot.getComplement()
+                snapshot.getComplement(),
+                snapshot.getLat(),
+                snapshot.getLng()
         );
     }
 }

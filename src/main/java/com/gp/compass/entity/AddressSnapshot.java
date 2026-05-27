@@ -32,4 +32,10 @@ public class AddressSnapshot {
 
     @Column(length = 150)
     private String complement;
+
+    @Column
+    private Double lat;
+
+    @Column
+    private Double lng;
 }
