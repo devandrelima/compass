@@ -1,5 +1,6 @@
 package com.gp.compass.controller;
 
+import com.gp.compass.dto.OptimizePreviewResponse;
 import com.gp.compass.dto.TripStopRequest;
 import com.gp.compass.dto.TripStopResponse;
 import com.gp.compass.dto.UpdateTripStopRequest;
@@ -78,8 +79,18 @@ public class TripStopController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/optimize/preview")
+    public ResponseEntity<OptimizePreviewResponse> previewOptimize(@PathVariable UUID tripId) {
+        return ResponseEntity.ok(service.previewOptimize(tripId));
+    }
+
     @PostMapping("/optimize")
     public ResponseEntity<List<TripStopResponse>> optimize(@PathVariable UUID tripId) {
         return ResponseEntity.ok(service.optimizeTrip(tripId));
+    }
+
+    @PostMapping("/optimize/revert")
+    public ResponseEntity<List<TripStopResponse>> revertOptimize(@PathVariable UUID tripId) {
+        return ResponseEntity.ok(service.revertOptimize(tripId));
     }
 }

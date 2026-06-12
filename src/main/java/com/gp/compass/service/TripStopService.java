@@ -4,12 +4,14 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import com.gp.compass.dto.OptimizePreviewResponse;
 import com.gp.compass.dto.TripStopRequest;
 import com.gp.compass.dto.TripStopResponse;
 import com.gp.compass.dto.UpdateTripStopRequest;
@@ -18,11 +20,14 @@ import com.gp.compass.entity.StopPriority;
 import com.gp.compass.entity.Trip;
 import com.gp.compass.entity.TripStatus;
 import com.gp.compass.entity.TripStop;
+import com.gp.compass.entity.TripStopSequenceSnapshot;
 import com.gp.compass.entity.User;
 import com.gp.compass.mapper.TripStopMapper;
 import com.gp.compass.repository.ClientRepository;
 import com.gp.compass.repository.TripRepository;
 import com.gp.compass.repository.TripStopRepository;
+import com.gp.compass.repository.TripStopSequenceSnapshotRepository;
+import com.gp.compass.service.routing.Waypoint;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -36,6 +41,7 @@ public class TripStopService {
     private final TripRepository tripRepository;
     private final ClientRepository clientRepository;
     private final RouteOptimizationService routeOptimizationService;
+    private final TripStopSequenceSnapshotRepository sequenceSnapshotRepository;
 
     private User authenticatedUser() {
         return (User) SecurityContextHolder.getContext()
@@ -184,13 +190,7 @@ public class TripStopService {
         tripStopRepository.deleteAll(toDelete);
     }
 
-    @Transactional
-    public List<TripStopResponse> optimizeTrip(UUID tripId) {
-        Trip trip = findTripOwnedByUser(tripId);
-        assertNotFinished(trip);
-
-        List<TripStop> stops = tripStopRepository.findAllByTripOrderByEmbarqueSequenceOrderAsc(trip);
-
+    private void assertReadyForOptimization(List<TripStop> stops) {
         if (stops.isEmpty()) {
             throw new IllegalStateException("A viagem não possui paradas para otimizar");
         }
@@ -208,14 +208,25 @@ public class TripStopService {
                         "Todas as paradas com desembarque precisam ter coordenadas de desembarque para otimizar a rota.");
             }
         }
+    }
 
-        List<RouteOptimizationService.Waypoint> orderedWaypoints = routeOptimizationService.optimize(stops);
+    @Transactional
+    public List<TripStopResponse> optimizeTrip(UUID tripId) {
+        Trip trip = findTripOwnedByUser(tripId);
+        assertNotFinished(trip);
+
+        List<TripStop> stops = tripStopRepository.findAllByTripOrderByEmbarqueSequenceOrderAsc(trip);
+        assertReadyForOptimization(stops);
+
+        saveSequenceSnapshot(trip, stops);
+
+        List<Waypoint> orderedWaypoints = routeOptimizationService.optimize(stops);
 
         Map<UUID, TripStop> stopById = stops.stream()
                 .collect(Collectors.toMap(TripStop::getId, s -> s));
 
         for (int i = 0; i < orderedWaypoints.size(); i++) {
-            RouteOptimizationService.Waypoint wp = orderedWaypoints.get(i);
+            Waypoint wp = orderedWaypoints.get(i);
             TripStop stop = stopById.get(wp.stopId());
             if (stop == null) continue;
             if (wp.isDesembarque()) {
@@ -224,6 +235,72 @@ public class TripStopService {
                 stop.setEmbarqueSequenceOrder(i);
             }
         }
+
+        return tripStopRepository.saveAll(stops).stream()
+                .sorted(Comparator.comparingInt(TripStop::getEmbarqueSequenceOrder))
+                .map(TripStopMapper::toResponse)
+                .toList();
+    }
+
+    public OptimizePreviewResponse previewOptimize(UUID tripId) {
+        Trip trip = findTripOwnedByUser(tripId);
+
+        List<TripStop> stops = tripStopRepository.findAllByTripOrderByEmbarqueSequenceOrderAsc(trip);
+        assertReadyForOptimization(stops);
+
+        List<Waypoint> currentOrder = routeOptimizationService.buildCurrentOrder(stops);
+        List<Waypoint> optimizedOrder = routeOptimizationService.optimize(stops);
+
+        double beforeMeters = routeOptimizationService.totalDistanceMeters(currentOrder);
+        double afterMeters = routeOptimizationService.totalDistanceMeters(optimizedOrder);
+
+        return new OptimizePreviewResponse(beforeMeters / 1000.0, afterMeters / 1000.0);
+    }
+
+    private void saveSequenceSnapshot(Trip trip, List<TripStop> stops) {
+        sequenceSnapshotRepository.deleteAllByTrip(trip);
+
+        List<TripStopSequenceSnapshot> snapshots = stops.stream()
+                .map(stop -> TripStopSequenceSnapshot.builder()
+                        .trip(trip)
+                        .stopId(stop.getId())
+                        .embarqueSequenceOrder(stop.getEmbarqueSequenceOrder())
+                        .desembarqueSequenceOrder(stop.getDesembarqueSequenceOrder())
+                        .build())
+                .toList();
+
+        sequenceSnapshotRepository.saveAll(snapshots);
+    }
+
+    @Transactional
+    public List<TripStopResponse> revertOptimize(UUID tripId) {
+        Trip trip = findTripOwnedByUser(tripId);
+        assertNotFinished(trip);
+
+        List<TripStopSequenceSnapshot> snapshots = sequenceSnapshotRepository.findAllByTrip(trip);
+        if (snapshots.isEmpty()) {
+            throw new IllegalStateException("Não há otimização para desfazer nesta viagem");
+        }
+
+        List<TripStop> stops = tripStopRepository.findAllByTripOrderByEmbarqueSequenceOrderAsc(trip);
+
+        Set<UUID> stopIds = stops.stream().map(TripStop::getId).collect(Collectors.toSet());
+        Set<UUID> snapshotStopIds = snapshots.stream().map(TripStopSequenceSnapshot::getStopId).collect(Collectors.toSet());
+        if (!stopIds.equals(snapshotStopIds)) {
+            sequenceSnapshotRepository.deleteAllByTrip(trip);
+            throw new IllegalStateException("As paradas desta viagem mudaram desde a última otimização");
+        }
+
+        Map<UUID, TripStop> stopById = stops.stream()
+                .collect(Collectors.toMap(TripStop::getId, s -> s));
+
+        for (TripStopSequenceSnapshot snapshot : snapshots) {
+            TripStop stop = stopById.get(snapshot.getStopId());
+            stop.setEmbarqueSequenceOrder(snapshot.getEmbarqueSequenceOrder());
+            stop.setDesembarqueSequenceOrder(snapshot.getDesembarqueSequenceOrder());
+        }
+
+        sequenceSnapshotRepository.deleteAllByTrip(trip);
 
         return tripStopRepository.saveAll(stops).stream()
                 .sorted(Comparator.comparingInt(TripStop::getEmbarqueSequenceOrder))
