@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,9 +30,14 @@ public class RouteOptimizationService {
      * {@link HeldKarpSolver} (exact, up to {@link HeldKarpSolver#MAX_N} waypoints)
      * or {@link SimulatedAnnealingSolver} (above that).
      *
+     * Only waypoints not yet checked (embarque/desembarque pendentes) are
+     * considered. If {@code origin} is provided (e.g. driver's current
+     * location), it anchors the start of the first non-empty priority group
+     * but is never included in the returned list.
+     *
      * Returns waypoints in optimized order; list index = sequence position.
      */
-    public List<Waypoint> optimize(List<TripStop> stops) {
+    public List<Waypoint> optimize(List<TripStop> stops, Waypoint origin) {
         List<Waypoint> all = buildWaypoints(stops);
         if (all.size() <= 1) return all;
 
@@ -40,12 +46,21 @@ public class RouteOptimizationService {
         List<Waypoint> normal   = byPriority(all, StopPriority.NORMAL);
 
         List<Waypoint> result = new ArrayList<>(all.size());
-        Waypoint tail = null;
+        Waypoint tail = origin;
         tail = appendGroup(critical, tail, result);
         tail = appendGroup(high,     tail, result);
                appendGroup(normal,   tail, result);
 
         return result;
+    }
+
+    /**
+     * Wraps the driver's current position as a synthetic, non-persisted
+     * waypoint used only to anchor the start of the route.
+     */
+    public Waypoint buildOrigin(Double lat, Double lng) {
+        if (lat == null || lng == null) return null;
+        return new Waypoint(null, false, lat, lng, StopPriority.NORMAL);
     }
 
     // ── Pipeline ──────────────────────────────────────────────────────────────
@@ -112,7 +127,7 @@ public class RouteOptimizationService {
             if (!w.isDesembarque()) continue;
             for (int j = 0; j < n; j++) {
                 Waypoint candidate = nodes.get(j);
-                if (!candidate.isDesembarque() && candidate.stopId().equals(w.stopId())) {
+                if (!candidate.isDesembarque() && Objects.equals(candidate.stopId(), w.stopId())) {
                     precedence[i] = j;
                     break;
                 }
@@ -123,15 +138,22 @@ public class RouteOptimizationService {
 
     // ── Waypoint construction ────────────────────────────────────────────────
 
+    /**
+     * Builds waypoints for stops not yet checked: embarque is included
+     * unless already checked, desembarque unless already checked (or absent).
+     */
     private List<Waypoint> buildWaypoints(List<TripStop> stops) {
         List<Waypoint> waypoints = new ArrayList<>();
         for (TripStop stop : stops) {
-            waypoints.add(new Waypoint(
-                    stop.getId(), false,
-                    stop.getEmbarque().getLat(), stop.getEmbarque().getLng(),
-                    stop.getPriority()
-            ));
-            if (stop.getDesembarque() != null && stop.getDesembarque().getLat() != null) {
+            if (!stop.isEmbarqueChecked()) {
+                waypoints.add(new Waypoint(
+                        stop.getId(), false,
+                        stop.getEmbarque().getLat(), stop.getEmbarque().getLng(),
+                        stop.getPriority()
+                ));
+            }
+            if (stop.getDesembarque() != null && stop.getDesembarque().getLat() != null
+                    && !stop.isDesembarqueChecked()) {
                 waypoints.add(new Waypoint(
                         stop.getId(), true,
                         stop.getDesembarque().getLat(), stop.getDesembarque().getLng(),
@@ -149,21 +171,25 @@ public class RouteOptimizationService {
     // ── Preview helpers ──────────────────────────────────────────────────────
 
     /**
-     * Builds the waypoints in the trip's current visiting order, merging embarque
-     * and desembarque waypoints by their respective {@code sequenceOrder}.
+     * Builds the not-yet-checked waypoints in the trip's current visiting order,
+     * merging embarque and desembarque waypoints by their respective
+     * {@code sequenceOrder}.
      */
     public List<Waypoint> buildCurrentOrder(List<TripStop> stops) {
         record Indexed(Waypoint waypoint, double order) {}
 
         List<Indexed> indexed = new ArrayList<>();
         for (TripStop stop : stops) {
-            indexed.add(new Indexed(new Waypoint(
-                    stop.getId(), false,
-                    stop.getEmbarque().getLat(), stop.getEmbarque().getLng(),
-                    stop.getPriority()
-            ), stop.getEmbarqueSequenceOrder()));
+            if (!stop.isEmbarqueChecked()) {
+                indexed.add(new Indexed(new Waypoint(
+                        stop.getId(), false,
+                        stop.getEmbarque().getLat(), stop.getEmbarque().getLng(),
+                        stop.getPriority()
+                ), stop.getEmbarqueSequenceOrder()));
+            }
 
-            if (stop.getDesembarque() != null && stop.getDesembarque().getLat() != null) {
+            if (stop.getDesembarque() != null && stop.getDesembarque().getLat() != null
+                    && !stop.isDesembarqueChecked()) {
                 // Sem otimização prévia, desembarqueSequenceOrder é null: posiciona logo
                 // após o embarque da mesma parada (mesmo critério do frontend).
                 double order = stop.getDesembarqueSequenceOrder() != null
@@ -197,5 +223,20 @@ public class RouteOptimizationService {
             total += matrix[i][i + 1];
         }
         return total;
+    }
+
+    /**
+     * Same as {@link #totalDistanceMeters(List)}, but measuring from
+     * {@code origin} (e.g. driver's current location) to the first waypoint
+     * when present.
+     */
+    public double totalDistanceMeters(List<Waypoint> ordered, Waypoint origin) {
+        if (origin == null) return totalDistanceMeters(ordered);
+        if (ordered.isEmpty()) return 0;
+
+        List<Waypoint> withOrigin = new ArrayList<>(ordered.size() + 1);
+        withOrigin.add(origin);
+        withOrigin.addAll(ordered);
+        return totalDistanceMeters(withOrigin);
     }
 }

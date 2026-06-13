@@ -80,13 +80,21 @@ public class TripStopController {
     }
 
     @GetMapping("/optimize/preview")
-    public ResponseEntity<OptimizePreviewResponse> previewOptimize(@PathVariable UUID tripId) {
-        return ResponseEntity.ok(service.previewOptimize(tripId));
+    public ResponseEntity<OptimizePreviewResponse> previewOptimize(
+            @PathVariable UUID tripId,
+            @RequestParam(required = false) Double originLat,
+            @RequestParam(required = false) Double originLng
+    ) {
+        return ResponseEntity.ok(service.previewOptimize(tripId, originLat, originLng));
     }
 
     @PostMapping("/optimize")
-    public ResponseEntity<List<TripStopResponse>> optimize(@PathVariable UUID tripId) {
-        return ResponseEntity.ok(service.optimizeTrip(tripId));
+    public ResponseEntity<List<TripStopResponse>> optimize(
+            @PathVariable UUID tripId,
+            @RequestParam(required = false) Double originLat,
+            @RequestParam(required = false) Double originLng
+    ) {
+        return ResponseEntity.ok(service.optimizeTrip(tripId, originLat, originLng));
     }
 
     @PostMapping("/optimize/revert")

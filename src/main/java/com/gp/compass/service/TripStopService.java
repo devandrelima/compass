@@ -211,28 +211,34 @@ public class TripStopService {
     }
 
     @Transactional
-    public List<TripStopResponse> optimizeTrip(UUID tripId) {
+    public List<TripStopResponse> optimizeTrip(UUID tripId, Double originLat, Double originLng) {
         Trip trip = findTripOwnedByUser(tripId);
         assertNotFinished(trip);
 
         List<TripStop> stops = tripStopRepository.findAllByTripOrderByEmbarqueSequenceOrderAsc(trip);
         assertReadyForOptimization(stops);
 
-        saveSequenceSnapshot(trip, stops);
+        Waypoint origin = routeOptimizationService.buildOrigin(originLat, originLng);
+        List<Waypoint> orderedWaypoints = routeOptimizationService.optimize(stops, origin);
+        if (orderedWaypoints.isEmpty()) {
+            throw new IllegalStateException("Todas as paradas já foram concluídas");
+        }
 
-        List<Waypoint> orderedWaypoints = routeOptimizationService.optimize(stops);
+        saveSequenceSnapshot(trip, stops);
 
         Map<UUID, TripStop> stopById = stops.stream()
                 .collect(Collectors.toMap(TripStop::getId, s -> s));
 
+        int nextSeq = nextPendingSequenceOrder(stops);
         for (int i = 0; i < orderedWaypoints.size(); i++) {
             Waypoint wp = orderedWaypoints.get(i);
             TripStop stop = stopById.get(wp.stopId());
             if (stop == null) continue;
+            int seq = nextSeq + i;
             if (wp.isDesembarque()) {
-                stop.setDesembarqueSequenceOrder(i);
+                stop.setDesembarqueSequenceOrder(seq);
             } else {
-                stop.setEmbarqueSequenceOrder(i);
+                stop.setEmbarqueSequenceOrder(seq);
             }
         }
 
@@ -242,17 +248,40 @@ public class TripStopService {
                 .toList();
     }
 
-    public OptimizePreviewResponse previewOptimize(UUID tripId) {
+    /**
+     * Próximo número de sequência livre para as paradas pendentes: o maior
+     * {@code sequenceOrder} já usado por paradas concluídas, mais um (0 se
+     * nenhuma parada estiver concluída ainda).
+     */
+    private int nextPendingSequenceOrder(List<TripStop> stops) {
+        int next = 0;
+        for (TripStop stop : stops) {
+            if (stop.isEmbarqueChecked()) {
+                next = Math.max(next, stop.getEmbarqueSequenceOrder() + 1);
+            }
+            if (stop.isDesembarqueChecked() && stop.getDesembarqueSequenceOrder() != null) {
+                next = Math.max(next, stop.getDesembarqueSequenceOrder() + 1);
+            }
+        }
+        return next;
+    }
+
+    public OptimizePreviewResponse previewOptimize(UUID tripId, Double originLat, Double originLng) {
         Trip trip = findTripOwnedByUser(tripId);
 
         List<TripStop> stops = tripStopRepository.findAllByTripOrderByEmbarqueSequenceOrderAsc(trip);
         assertReadyForOptimization(stops);
 
+        Waypoint origin = routeOptimizationService.buildOrigin(originLat, originLng);
         List<Waypoint> currentOrder = routeOptimizationService.buildCurrentOrder(stops);
-        List<Waypoint> optimizedOrder = routeOptimizationService.optimize(stops);
+        List<Waypoint> optimizedOrder = routeOptimizationService.optimize(stops, origin);
 
-        double beforeMeters = routeOptimizationService.totalDistanceMeters(currentOrder);
-        double afterMeters = routeOptimizationService.totalDistanceMeters(optimizedOrder);
+        if (optimizedOrder.isEmpty()) {
+            throw new IllegalStateException("Todas as paradas já foram concluídas");
+        }
+
+        double beforeMeters = routeOptimizationService.totalDistanceMeters(currentOrder, origin);
+        double afterMeters = routeOptimizationService.totalDistanceMeters(optimizedOrder, origin);
 
         return new OptimizePreviewResponse(beforeMeters / 1000.0, afterMeters / 1000.0);
     }
